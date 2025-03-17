@@ -5,88 +5,78 @@
 import Foundation
 import Magic
 
-/// Database connection with automatic memory management
+/**
+ * Memory-safe Swift database connector that follows the principles
+ * from the memory_safety_guide.md
+ */
 public class DatabaseConnector {
     private let connectionString: String
-    private var isConnected: Bool
-    private var connHandle: UInt64 // Safe handle instead of unsafe pointer
+    private var connectionHandle: Int = 0
+    private var isConnected: Bool = false
     
     /**
-     * Creates a database connector with automatic resource management
-     *
-     * - Parameter connectionString: The database connection string
+     * Initializes a new database connector
+     * - Parameter connectionString: The connection string for the database
      */
     public init(connectionString: String) {
         self.connectionString = connectionString
-        self.isConnected = false
-        self.connHandle = 0
     }
     
     /**
-     * Establishes connection to the database with safety checks
-     *
-     * - Returns: `true` if connection was successful
-     * - Throws: `DatabaseError` if connection fails
+     * Connects to the database
+     * - Throws: DatabaseError if connection fails
      */
-    public func connect() throws -> Bool {
+    public func connect() throws {
         if isConnected {
-            return true
+            return
         }
         
-        // Use Magic library for safe interop with Mojo
-        do {
-            self.connHandle = try Interop.createConnection(connectionString)
-            if self.connHandle == 0 {
-                throw DatabaseError.connectionFailed(message: "Failed to connect to database")
-            }
-            
-            self.isConnected = true
-            return true
-        } catch {
-            throw DatabaseError.connectionFailed(message: "Error connecting to database: \(error.localizedDescription)")
+        // Use Magic library for interoperability with Mojo
+        let handle = Interop.createConnection(connectionString: connectionString)
+        if handle <= 0 {
+            throw DatabaseError.connectionFailed
         }
+        
+        self.connectionHandle = handle
+        self.isConnected = true
     }
     
     /**
-     * Executes a query with automatic memory management for results
-     *
+     * Executes a query and returns the results
      * - Parameter sql: The SQL query to execute
-     * - Returns: `QueryResult` containing the results
-     * - Throws: `DatabaseError` if query execution fails
+     * - Returns: A QueryResult object containing the results
+     * - Throws: DatabaseError if the query fails or connection is not established
      */
     public func query(_ sql: String) throws -> QueryResult {
-        guard isConnected else {
+        if !isConnected {
             throw DatabaseError.notConnected
         }
         
-        do {
-            // Use safe handle-based API
-            let resultHandle = try Interop.executeQuery(connHandle, sql: sql)
-            
-            // Convert to Swift-friendly QueryResult (memory-safe)
-            return QueryResult(resultHandle: resultHandle)
-        } catch {
-            throw DatabaseError.queryFailed(message: "Error executing query: \(error.localizedDescription)")
+        let resultHandle = Interop.executeQuery(connectionId: connectionHandle, query: sql)
+        if resultHandle <= 0 {
+            throw DatabaseError.queryFailed
         }
+        
+        return QueryResult(handle: resultHandle)
     }
     
     /**
-     * Executes a non-query SQL statement
-     *
+     * Executes a non-query SQL statement like INSERT, UPDATE, DELETE
      * - Parameter sql: The SQL statement to execute
      * - Returns: Number of rows affected
-     * - Throws: `DatabaseError` if execution fails
+     * - Throws: DatabaseError if execution fails
      */
     public func execute(_ sql: String) throws -> Int {
-        guard isConnected else {
+        if !isConnected {
             throw DatabaseError.notConnected
         }
         
-        do {
-            return try Interop.executeNonQuery(connHandle, sql: sql)
-        } catch {
-            throw DatabaseError.executionFailed(message: "Error executing statement: \(error.localizedDescription)")
+        let affectedRows = Interop.executeNonQuery(connectionId: connectionHandle, sql: sql)
+        if affectedRows < 0 {
+            throw DatabaseError.executionFailed
         }
+        
+        return affectedRows
     }
     
     /**
@@ -94,11 +84,15 @@ public class DatabaseConnector {
      */
     public func close() {
         if isConnected {
-            Interop.closeConnection(connHandle)
+            Interop.closeConnection(connectionId: connectionHandle)
             isConnected = false
+            connectionHandle = 0
         }
     }
     
+    /**
+     * Automatically close connection when the object is deallocated
+     */
     deinit {
         close()
     }
@@ -108,39 +102,99 @@ public class DatabaseConnector {
  * Memory-safe wrapper for query results
  */
 public class QueryResult {
-    private let resultHandle: UInt64
+    private let handle: Int
     
-    init(resultHandle: UInt64) {
-        self.resultHandle = resultHandle
+    /**
+     * Initializes with a result handle from the interop layer
+     */
+    init(handle: Int) {
+        self.handle = handle
     }
     
+    /**
+     * Gets the number of rows in the result set
+     */
     public var rowCount: Int {
-        return Interop.getRowCount(resultHandle)
+        return Interop.getRowCount(resultId: handle)
     }
     
+    /**
+     * Gets the number of columns in the result set
+     */
     public var columnCount: Int {
-        return Interop.getColumnCount(resultHandle)
+        return Interop.getColumnCount(resultId: handle)
     }
     
-    public func getValue(row: Int, column: Int) -> String {
-        return Interop.getValue(resultHandle, row: row, column: column)
-    }
-    
-    public func toArray() -> [[String: Any]] {
-        return Interop.resultToArray(resultHandle)
-    }
-    
-    deinit {
-        if resultHandle != 0 {
-            Interop.freeResult(resultHandle)
+    /**
+     * Gets a value from the result set
+     * - Parameters:
+     *   - row: The zero-based row index
+     *   - column: The zero-based column index
+     * - Returns: The value as a string
+     * - Throws: DatabaseError if the indices are out of bounds
+     */
+    public func getValue(row: Int, column: Int) throws -> String {
+        if row < 0 || row >= rowCount || column < 0 || column >= columnCount {
+            throw DatabaseError.indexOutOfBounds
         }
+        
+        return Interop.getValue(resultId: handle, row: row, column: column)
+    }
+    
+    /**
+     * Converts the result set to an array of dictionaries
+     * - Returns: An array of dictionaries representing each row
+     */
+    public func toArray() -> [[String: Any]] {
+        return Interop.resultToArray(resultId: handle)
+    }
+    
+    /**
+     * Releases the result resources when this object is deallocated
+     */
+    deinit {
+        Interop.freeResult(resultId: handle)
     }
 }
 
-/// Database error types
+/**
+ * Database-related errors
+ */
 public enum DatabaseError: Error {
-    case connectionFailed(message: String)
+    case connectionFailed
     case notConnected
-    case queryFailed(message: String)
-    case executionFailed(message: String)
+    case queryFailed
+    case executionFailed
+    case indexOutOfBounds
+}
+
+/**
+ * Example usage
+ */
+func databaseExample() {
+    do {
+        // Create connector with automatic resource management
+        let db = DatabaseConnector(connectionString: "postgresql://localhost:5432/mydb")
+        
+        // Connect - resources managed through Swift's ARC
+        try db.connect()
+        
+        // Query with automatic resource management
+        let users = try db.query("SELECT id, username, email FROM users")
+        print("Found \(users.rowCount) users")
+        
+        // Process results safely
+        for row in 0..<users.rowCount {
+            let id = try users.getValue(row: row, column: 0)
+            let username = try users.getValue(row: row, column: 1)
+            let email = try users.getValue(row: row, column: 2)
+            print("User: \(username) (ID: \(id), Email: \(email))")
+        }
+        
+        // No need for explicit cleanup - resources are automatically managed
+    } catch {
+        print("Error: \(error)")
+    }
+    
+    // Even if exceptions occur, resources are automatically cleaned up
 } 
