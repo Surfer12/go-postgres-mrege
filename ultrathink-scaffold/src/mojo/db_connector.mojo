@@ -111,6 +111,17 @@ struct DBConnector:
             
         return QueryResult(ResultHandle(result_id))
     
+    fn prepare(self, sql: String) raises -> PreparedStatement:
+        """Prepare a SQL statement for repeated execution."""
+        if not self.connected:
+            raise Error("Not connected to database")
+        
+        let statement_id = interop.prepare_statement(self.handle.id, sql)
+        if statement_id <= 0:
+            raise Error("Failed to prepare statement")
+        
+        return PreparedStatement(self.handle, statement_id)
+    
     # Destructor automatically handles cleanup through the ConnectionHandle
 
 struct QueryResult:
@@ -132,6 +143,45 @@ struct QueryResult:
         return interop.get_value(self.handle.id, row, col)
     
     # No need for explicit cleanup - ResultHandle destructor handles it
+
+struct PreparedStatement:
+    """Safe wrapper for prepared statements."""
+    var handle: ConnectionHandle
+    var statement_id: Int
+    
+    fn __init__(inout self, conn_handle: ConnectionHandle, statement_id: Int):
+        self.handle = conn_handle
+        self.statement_id = statement_id
+    
+    fn bind_int(self, param_index: Int, value: Int) raises:
+        """Bind an integer parameter."""
+        if param_index < 1:
+            raise Error("Parameter index must be >= 1")
+            
+        let result = interop.bind_int_parameter(self.handle.id, self.statement_id, param_index, value)
+        if result <= 0:
+            raise Error("Failed to bind integer parameter")
+    
+    fn bind_string(self, param_index: Int, value: String) raises:
+        """Bind a string parameter."""
+        if param_index < 1:
+            raise Error("Parameter index must be >= 1")
+            
+        let result = interop.bind_string_parameter(self.handle.id, self.statement_id, param_index, value)
+        if result <= 0:
+            raise Error("Failed to bind string parameter")
+    
+    fn execute(self) raises -> QueryResult:
+        """Execute the prepared statement."""
+        let result_id = interop.execute_prepared(self.handle.id, self.statement_id)
+        if result_id <= 0:
+            raise Error("Failed to execute prepared statement")
+            
+        return QueryResult(ResultHandle(result_id))
+    
+    fn close(self):
+        """Close the prepared statement."""
+        interop.close_prepared(self.handle.id, self.statement_id)
 
 fn example_usage() raises:
     # Example of safe usage
@@ -164,3 +214,45 @@ fn example_usage() raises:
         # Even with exception, db will be cleaned up automatically
     
     # No explicit cleanup needed - destructors handle cleanup 
+
+# Add to interop module
+@staticmethod
+fn prepare_statement(conn_id: Int, sql: String) -> Int:
+    """Prepares a SQL statement and returns a statement ID."""
+    return _safe_prepare_statement(conn_id, sql)
+
+@staticmethod
+fn bind_int_parameter(conn_id: Int, statement_id: Int, param_index: Int, value: Int) -> Int:
+    """Binds an integer parameter to a prepared statement."""
+    return _safe_bind_int_parameter(conn_id, statement_id, param_index, value)
+
+@staticmethod
+fn bind_string_parameter(conn_id: Int, statement_id: Int, param_index: Int, value: String) -> Int:
+    """Binds a string parameter to a prepared statement."""
+    return _safe_bind_string_parameter(conn_id, statement_id, param_index, value)
+
+@staticmethod
+fn execute_prepared(conn_id: Int, statement_id: Int) -> Int:
+    """Executes a prepared statement and returns a result ID."""
+    return _safe_execute_prepared(conn_id, statement_id)
+
+@staticmethod
+fn close_prepared(conn_id: Int, statement_id: Int):
+    """Closes a prepared statement."""
+    _safe_close_prepared(conn_id, statement_id)
+
+# Add external implementations
+@external
+fn _safe_prepare_statement(conn_id: Int, sql: String) -> Int
+
+@external
+fn _safe_bind_int_parameter(conn_id: Int, statement_id: Int, param_index: Int, value: Int) -> Int
+
+@external
+fn _safe_bind_string_parameter(conn_id: Int, statement_id: Int, param_index: Int, value: String) -> Int
+
+@external
+fn _safe_execute_prepared(conn_id: Int, statement_id: Int) -> Int
+
+@external
+fn _safe_close_prepared(conn_id: Int, statement_id: Int) 
