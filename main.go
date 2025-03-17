@@ -89,7 +89,7 @@ func runProxy() {
 
 	// Create API server with proxy setup
 	server := api.NewServer(nil, vertexClient)
-	
+
 	// Configure proxy routes
 	server.SetupProxyRoutes()
 
@@ -98,22 +98,21 @@ func runProxy() {
 	if port == "" {
 		port = "8000" // Use different default port for proxy mode
 	}
-	
+
 	log.Printf("Starting API Gateway in proxy mode on port %s", port)
 	log.Fatal(server.Start(":" + port))
-}
 }
 
 func runExamples() {
 	fmt.Println("===== Running example operations =====")
-	
+
 	// Initialize database connection
 	dbConn, err := db.InitDB()
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
 	defer dbConn.Close()
-	
+
 	// Example usage: Create a user
 	newUser := models.User{
 		Username: "testuser",
@@ -159,7 +158,7 @@ func runExamples() {
 		log.Fatal(err)
 	}
 	fmt.Println("User deleted successfully")
-	
+
 	// Create a sample RCCT ThoughtNode structure
 	sampleNode := models.ThoughtNode{
 		ID:       "root-1",
@@ -179,9 +178,9 @@ func runExamples() {
 		},
 		MetaAnalysis: "Meta-analysis of the thought process",
 	}
-	
+
 	fmt.Printf("Sample RCCT ThoughtNode: %+v\n", sampleNode)
-	
+
 	// Show polyglot architecture information
 	fmt.Println("\n===== Polyglot Architecture =====")
 	fmt.Println("This project demonstrates a polyglot architecture with:")
@@ -190,7 +189,7 @@ func runExamples() {
 	fmt.Println("3. Java: Type-safe REST API with generic implementations")
 	fmt.Println("4. Postgres: Relational database backend")
 	fmt.Println("5. Vertex AI: Machine learning integration for user analysis")
-	
+
 	fmt.Println("\nTo run the polyglot architecture:")
 	fmt.Println("docker-compose -f docker/docker-compose.yml up")
 }

@@ -9133,4 +9133,9 @@ func TestAPIWithValidUserInteraction(t *testing.T) {
 }
 
 func TestAPIWithInvalidInteractiveDocumentation(t *testing.T) {
-	// Add
+	// Add your test cases here
+}
+
+func TestAPIWithValidInteractiveDocumentation(t *testing.T) {
+	// Add your test cases here
+}
