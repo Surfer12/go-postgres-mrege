@@ -1,0 +1,11 @@
+graph TD
+    A[Client] --> B[API Gateway]
+    B --> C[User Service]
+    B --> D[Product Service]
+    C --> E[User Database]
+    D --> F[Product Database]
+    C --> G[Authentication Service]
+    G --> H[Identity Provider]
+    B --> I[Notification Service]
+    I --> J[Email Service]
+    I --> K[Push Notification Service] 
