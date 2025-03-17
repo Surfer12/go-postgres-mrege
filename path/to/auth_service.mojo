@@ -1,1 +1,1 @@
-{{ Implement JWT authentication for Mojo service }} 
+{{ Implement JWT authentication for Mojo service }}

@@ -1,1 +1,1 @@
-{{ Implement Prometheus metrics for Mojo service }} 
+{{ Implement Prometheus metrics for Mojo service }}

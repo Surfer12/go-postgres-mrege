@@ -1,1 +1,1 @@
- 
+{{ Implement circuit breaker pattern for Mojo service }} 

@@ -21,4 +21,4 @@ jobs:
         run: go test -v ./...
       - name: Deploy
         run: |
-          {{ Implement deployment steps }} 
+          {{ Implement deployment steps }}
