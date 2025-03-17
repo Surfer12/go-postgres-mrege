@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"name": "go-postgres",
+			"path": "../../go-postgres"
+		},
+		{
+			"name": "rcct-visualization",
+			"path": "../../rcct-visualization"
+		}
+	],
+	"settings": {
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}
